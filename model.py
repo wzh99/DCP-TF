@@ -10,9 +10,6 @@ class DCP(keras.Model):
         self.transformer = Transformer(1, 512, 4, 1024, 0.1)
         self.svd = SVD()
 
-    def build(self, input_shape: tf.TensorShape):
-        self.dgcnn.build(input_shape)
-
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor]):
         # Extract features from both point clouds
         src, tgt = inputs
@@ -27,20 +24,43 @@ class DCP(keras.Model):
 
         # Solve with SVD
         R, t = self.svd(src, tgt, src_embed, tgt_embed)
+        T = tf.concat([R, t], 1)
 
-        return (R, t)
+        return T
+
+
+class DCPLoss(keras.losses.Loss):
+    def __init__(self, model: DCP, lamb: Optional[float] = None):
+        super().__init__(reduction=keras.losses.Reduction.NONE)
+        self.model = model
+        self.lamb = lamb
+
+    def call(self, y_true: tf.Tensor, y_pred: tf.Tensor):
+        # Compute transformation loss
+        R_true, t_true = tf.split(y_true, [3, 1], axis=1)
+        R_pred, t_pred = tf.split(y_pred, [3, 1], axis=1)
+        batch_size = tf.cast(R_true.shape[0], tf.float32)
+        R_diff = tf.matmul(R_pred, R_true, transpose_a=True) - tf.eye(3)
+        R_err = tf.nn.l2_loss(R_diff)
+        t_err = tf.nn.l2_loss(t_pred - t_true)
+        loss = (R_err + t_err) / batch_size
+
+        # Apply Tikhonov regularization
+        if self.lamb is not None:
+            for param in self.model.trainable_weights:
+                loss += tf.nn.l2_loss(param) * self.lamb
+
+        return loss
 
 
 class DGCNN(keras.Model):
     def __init__(self, k: int = 16):
         super().__init__()
-        self.k = k
 
-    def build(self, input_shape: tf.TensorShape):
-        self.graph = GraphFeature(self.k)
+        self.graph = GraphFeature(k)
 
         from tensorflow.keras.layers import Conv1D, Conv2D, BatchNormalization
-        self.conv1 = Conv2D(64, 1, use_bias=False, input_shape=input_shape)
+        self.conv1 = Conv2D(64, 1, use_bias=False)
         self.conv2 = Conv2D(64, 1, use_bias=False)
         self.conv3 = Conv2D(128, 1, use_bias=False)
         self.conv4 = Conv2D(256, 1, use_bias=False)
@@ -301,14 +321,18 @@ class SVD(keras.layers.Layer):
 
         # Compute translation
         t = tf.matmul(src_mean, -R, transpose_b=True) + matched_mean
-        t = tf.squeeze(t, axis=1)
 
         return (R, t)
 
 
 if __name__ == "__main__":
+    batch_size = 2
     import numpy as np
     model = DCP()
-    x = np.random.randn(2, 2048, 3).astype(np.float32)
-    print(model((x, x)))
-    model.summary()
+    x = np.random.randn(batch_size, 2048, 3).astype(np.float32)
+    R = np.expand_dims(np.eye(3), 0)
+    R = np.tile(R, (batch_size, 1, 1))
+    t = np.zeros((batch_size, 1, 3))
+    T = np.concatenate([R, t], axis=1)
+    model.compile(optimizer='adam', loss=DCPLoss(model))
+    print(model.train_on_batch(x=(x, x), y=T))
