@@ -1,0 +1,6 @@
+__pycache__
+.vscode
+*.h5
+*.json
+*.txt
+.DS_Store
