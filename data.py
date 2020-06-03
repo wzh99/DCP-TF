@@ -21,4 +21,12 @@ def pack_to_one():
 
 
 if __name__ == "__main__":
-    pack_to_one()
+    # import torch
+    # wt = torch.load('weights/dcp_v1.t7', map_location=torch.device('cpu'))
+    # for k, v in wt.items():
+    #     print(k, v.size())
+    h5 = h5py.File('dcp.h5', 'r')
+    for k, g in h5['dgcnn']['dcp']['dgcnn'].items():
+        # print(k, g)
+        for k, v in g.items():
+            print(k, v)

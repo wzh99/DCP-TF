@@ -1,6 +1,9 @@
 __pycache__
 .vscode
+modelnet40
+weights
+logs
 *.h5
-*.json
-*.txt
+*.t7
+*.slurm
 .DS_Store

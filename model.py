@@ -7,33 +7,37 @@ class DCP(keras.Model):
     def __init__(self):
         super().__init__()
         self.dgcnn = DGCNN()
-        self.transformer = Transformer(1, 512, 4, 1024, 0.1)
+        # self.transformer = Transformer(1, 512, 4, 1024, 0.1)
         self.svd = SVD()
 
-    def call(self, inputs: Tuple[tf.Tensor, tf.Tensor]):
+    def call(self, x: tf.Tensor):
         # Extract features from both point clouds
-        src, tgt = inputs
+        src, tgt = tf.split(x, (1, 1), axis=1)
+        src = tf.squeeze(src)
+        tgt = tf.squeeze(tgt)
         src_feat = self.dgcnn(src)
         tgt_feat = self.dgcnn(tgt)
 
         # Produce new embeddings with attention model
-        src_resid = self.transformer(tgt_feat, src_feat)
-        tgt_resid = self.transformer(src_feat, tgt_feat)
-        src_embed = src_feat + src_resid
-        tgt_embed = tgt_feat + tgt_resid
+        # src_resid = self.transformer(tgt_feat, src_feat)
+        # tgt_resid = self.transformer(src_feat, tgt_feat)
+        # src_embed = src_feat + src_resid
+        # tgt_embed = tgt_feat + tgt_resid
+        src_embed = src_feat
+        tgt_embed = tgt_feat
 
         # Solve with SVD
         R, t = self.svd(src, tgt, src_embed, tgt_embed)
-        T = tf.concat([R, t], 1)
+        y = tf.concat([R, t], 1)
 
-        return T
+        return y
 
 
 class DCPLoss(keras.losses.Loss):
-    def __init__(self, model: DCP, lamb: Optional[float] = None):
+    def __init__(self, model: DCP, l: Optional[float] = None):
         super().__init__(reduction=keras.losses.Reduction.NONE)
         self.model = model
-        self.lamb = lamb
+        self.l = l
 
     def call(self, y_true: tf.Tensor, y_pred: tf.Tensor):
         # Compute transformation loss
@@ -46,9 +50,9 @@ class DCPLoss(keras.losses.Loss):
         loss = (R_err + t_err) / batch_size
 
         # Apply Tikhonov regularization
-        if self.lamb is not None:
+        if self.l is not None:
             for param in self.model.trainable_weights:
-                loss += tf.nn.l2_loss(param) * self.lamb
+                loss += tf.nn.l2_loss(param) * self.l
 
         return loss
 
@@ -60,37 +64,39 @@ class DGCNN(keras.Model):
         self.graph = GraphFeature(k)
 
         from tensorflow.keras.layers import Conv1D, Conv2D, BatchNormalization
-        self.conv1 = Conv2D(64, 1, use_bias=False)
-        self.conv2 = Conv2D(64, 1, use_bias=False)
-        self.conv3 = Conv2D(128, 1, use_bias=False)
-        self.conv4 = Conv2D(256, 1, use_bias=False)
-        self.conv5 = Conv1D(512, 1, use_bias=False)
+        self.conv1 = Conv2D(64, 1, use_bias=False, name='conv1')
+        self.conv2 = Conv2D(64, 1, use_bias=False, name='conv2')
+        self.conv3 = Conv2D(128, 1, use_bias=False, name='conv3')
+        self.conv4 = Conv2D(256, 1, use_bias=False, name='conv4')
+        self.conv5 = Conv2D(512, 1, use_bias=False, name='conv5')
 
-        self.bn1 = BatchNormalization()
-        self.bn2 = BatchNormalization()
-        self.bn3 = BatchNormalization()
-        self.bn4 = BatchNormalization()
-        self.bn5 = BatchNormalization()
+        self.bn1 = BatchNormalization(name='bn1')
+        self.bn2 = BatchNormalization(name='bn2')
+        self.bn3 = BatchNormalization(name='bn3')
+        self.bn4 = BatchNormalization(name='bn4')
+        self.bn5 = BatchNormalization(name='bn5')
 
     def call(self, x: tf.Tensor):
         # Extract features from different levels
-        x1 = tf.nn.relu(self.bn1(self.conv1(self.graph(x))))
-        x1 = tf.reduce_max(x1, axis=-2)
+        x = self.graph(x)
+        x = tf.nn.relu(self.bn1(self.conv1(x)))
+        x1 = tf.reduce_max(x, axis=-2, keepdims=True)
 
-        x2 = tf.nn.relu(self.bn2(self.conv2(self.graph(x1))))
-        x2 = tf.reduce_max(x2, axis=-2)
+        x = tf.nn.relu(self.bn2(self.conv2(x)))
+        x2 = tf.reduce_max(x, axis=-2, keepdims=True)
 
-        x3 = tf.nn.relu(self.bn3(self.conv3(self.graph(x2))))
-        x3 = tf.reduce_max(x3, axis=-2)
+        x = tf.nn.relu(self.bn3(self.conv3(x)))
+        x3 = tf.reduce_max(x, axis=-2, keepdims=True)
 
-        x4 = tf.nn.relu(self.bn4(self.conv4(self.graph(x3))))
-        x4 = tf.reduce_max(x4, axis=-2)
+        x = tf.nn.relu(self.bn4(self.conv4(x)))
+        x4 = tf.reduce_max(x, axis=-2, keepdims=True)
 
         # Produce final embedding features
-        x5 = tf.concat([x1, x2, x3, x4], axis=-1)
-        x5 = tf.nn.relu(self.bn5(self.conv5(x5)))
+        x = tf.concat([x1, x2, x3, x4], axis=-1)
+        x = tf.nn.relu(self.bn5(self.conv5(x)))
+        x = tf.squeeze(x)
 
-        return x5  # (batch_size, num_vertices, num_features)
+        return x  # (batch_size, num_vertices, num_features)
 
 
 class GraphFeature(keras.layers.Layer):
@@ -148,8 +154,8 @@ class EncoderLayer(keras.layers.Layer):
         self.ffn = FeedForward(d_model, d_ff)
 
         from tensorflow.keras.layers import LayerNormalization, Dropout
-        self.norm1 = LayerNormalization(epsilon=1e-6)
-        self.norm2 = LayerNormalization(epsilon=1e-6)
+        self.ln1 = LayerNormalization(epsilon=1e-6)
+        self.ln2 = LayerNormalization(epsilon=1e-6)
         self.dropout1 = Dropout(rate)
         self.dropout2 = Dropout(rate)
 
@@ -157,12 +163,12 @@ class EncoderLayer(keras.layers.Layer):
         # Multi-head attention
         atten_out = self.mha(x, x, x)
         atten_out = self.dropout1(atten_out)
-        out1 = self.norm1(x + atten_out)
+        out1 = self.ln1(x + atten_out)
 
         # Feed forward
         ffn_out = self.ffn(out1)
         ffn_out = self.dropout2(ffn_out)
-        out2 = self.norm2(out1 + ffn_out)
+        out2 = self.ln2(out1 + ffn_out)
 
         return out2
 
@@ -298,8 +304,9 @@ class SVD(keras.layers.Layer):
         # Generate pointer
         batch_size, _, d_k = src.shape
         d_k = tf.cast(d_k, tf.float32)
-        pointer = tf.matmul(tgt_embed, src_embed, transpose_b=True) / d_k
-        pointer = tf.nn.softmax(pointer, axis=1)
+        pointer = tf.matmul(tgt_embed, src_embed,
+                            transpose_b=True) / tf.math.sqrt(d_k)
+        pointer = tf.nn.softmax(pointer, axis=-1)
 
         # Compute cross-variance matrix
         matched = tf.matmul(pointer, tgt, transpose_a=True)
@@ -322,17 +329,11 @@ class SVD(keras.layers.Layer):
         # Compute translation
         t = tf.matmul(src_mean, -R, transpose_b=True) + matched_mean
 
-        return (R, t)
+        return R, t
 
 
 if __name__ == "__main__":
-    batch_size = 2
-    import numpy as np
-    model = DCP()
-    x = np.random.randn(batch_size, 2048, 3).astype(np.float32)
-    R = np.expand_dims(np.eye(3), 0)
-    R = np.tile(R, (batch_size, 1, 1))
-    t = np.zeros((batch_size, 1, 3))
-    T = np.concatenate([R, t], axis=1)
-    model.compile(optimizer='adam', loss=DCPLoss(model))
-    print(model.train_on_batch(x=(x, x), y=T))
+    dcp = DCP()
+    dcp(tf.zeros((8, 2, 2048, 3)))
+    dcp.save_weights('dcp.h5')
+
