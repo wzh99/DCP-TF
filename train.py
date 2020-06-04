@@ -29,7 +29,7 @@ class DataSequence(keras.utils.Sequence):
         # Fetch data for this batch
         batch_slice = slice(idx * self.batch_size,
                             min((idx + 1) * self.batch_size, self.len))
-        src = data[batch_slice]
+        src = self.data[batch_slice]
         batch_len = len(src)
 
         # Compute true transformation

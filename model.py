@@ -7,7 +7,7 @@ class DCP(keras.Model):
     def __init__(self):
         super().__init__()
         self.dgcnn = DGCNN()
-        # self.transformer = Transformer(1, 512, 4, 1024, 0.1)
+        # self.transformer = Transformer(1, 512, 4, 1024)
         self.svd = SVD()
 
     def call(self, x: tf.Tensor):
@@ -21,10 +21,10 @@ class DCP(keras.Model):
         # Produce new embeddings with attention model
         # src_resid = self.transformer(tgt_feat, src_feat)
         # tgt_resid = self.transformer(src_feat, tgt_feat)
-        # src_embed = src_feat + src_resid
-        # tgt_embed = tgt_feat + tgt_resid
-        src_embed = src_feat
-        tgt_embed = tgt_feat
+        src_resid = src_feat
+        tgt_resid = tgt_feat
+        src_embed = src_feat + src_resid
+        tgt_embed = tgt_feat + tgt_resid
 
         # Solve with SVD
         R, t = self.svd(src, tgt, src_embed, tgt_embed)
@@ -34,7 +34,7 @@ class DCP(keras.Model):
 
 
 class DCPLoss(keras.losses.Loss):
-    def __init__(self, model: DCP, l: Optional[float] = None):
+    def __init__(self, model: Optional[DCP] = None, l: Optional[float] = None):
         super().__init__(reduction=keras.losses.Reduction.NONE)
         self.model = model
         self.l = l
@@ -58,7 +58,7 @@ class DCPLoss(keras.losses.Loss):
 
 
 class DGCNN(keras.Model):
-    def __init__(self, k: int = 16):
+    def __init__(self, k: int = 20):
         super().__init__()
 
         self.graph = GraphFeature(k)
@@ -70,11 +70,11 @@ class DGCNN(keras.Model):
         self.conv4 = Conv2D(256, 1, use_bias=False, name='conv4')
         self.conv5 = Conv2D(512, 1, use_bias=False, name='conv5')
 
-        self.bn1 = BatchNormalization(name='bn1')
-        self.bn2 = BatchNormalization(name='bn2')
-        self.bn3 = BatchNormalization(name='bn3')
-        self.bn4 = BatchNormalization(name='bn4')
-        self.bn5 = BatchNormalization(name='bn5')
+        self.bn1 = BatchNormalization(name='bn1', epsilon=1e-5, momentum=0.9)
+        self.bn2 = BatchNormalization(name='bn2', epsilon=1e-5, momentum=0.9)
+        self.bn3 = BatchNormalization(name='bn3', epsilon=1e-5, momentum=0.9)
+        self.bn4 = BatchNormalization(name='bn4', epsilon=1e-5, momentum=0.9)
+        self.bn5 = BatchNormalization(name='bn5', epsilon=1e-5, momentum=0.9)
 
     def call(self, x: tf.Tensor):
         # Extract features from different levels
@@ -113,15 +113,15 @@ class GraphFeature(keras.layers.Layer):
         _, knn_idx = tf.nn.top_k(pair_dist, k=self.k)
 
         # Create edges to form a graph
-        edge_1 = tf.repeat(tf.expand_dims(x, 2), self.k, axis=2)
-        edge_2 = tf.gather(x, knn_idx, axis=1, batch_dims=1)
+        edge_1 = tf.gather(x, knn_idx, axis=1, batch_dims=1)
+        edge_2 = tf.repeat(tf.expand_dims(x, 2), self.k, axis=2)
         edge = tf.concat([edge_1, edge_2], axis=-1)
         return edge  # (batch_size, num_vertices, k, 6)
 
 
 class Transformer(keras.Model):
     def __init__(self, num_layers: int, d_model: int, num_heads: int, d_ff: int,
-                 rate: float):
+                 rate: float = 0):
         super().__init__()
 
         self.encoder = Encoder(num_layers, d_model, num_heads, d_ff, rate)
@@ -301,22 +301,27 @@ class SVD(keras.layers.Layer):
 
     def call(self, src: tf.Tensor, tgt: tf.Tensor, src_embed: tf.Tensor,
              tgt_embed: tf.Tensor):
-        # Generate pointer
-        batch_size, _, d_k = src.shape
-        d_k = tf.cast(d_k, tf.float32)
-        pointer = tf.matmul(tgt_embed, src_embed,
-                            transpose_b=True) / tf.math.sqrt(d_k)
-        pointer = tf.nn.softmax(pointer, axis=-1)
+        # Transpose input for better consistency with mathematical notations
+        src = tf.transpose(src, perm=(0, 2, 1))
+        tgt = tf.transpose(tgt, perm=(0, 2, 1))
+        src_embed = tf.transpose(src_embed, perm=(0, 2, 1))
+        tgt_embed = tf.transpose(tgt_embed, perm=(0, 2, 1))
 
-        # Compute cross-variance matrix
-        matched = tf.matmul(pointer, tgt, transpose_a=True)
-        src_mean = tf.reduce_mean(src, axis=1, keepdims=True)
-        src_demean = src - src_mean
-        matched_mean = tf.reduce_mean(matched, axis=1, keepdims=True)
-        matched_demean = matched - matched_mean
-        H = tf.matmul(src_demean, matched_demean, transpose_a=True)
+        # Generate soft pointer
+        d_k = tf.cast(src_embed.shape[1], tf.float32)
+        pointer = tf.matmul(src_embed, tgt_embed,
+                            transpose_a=True) / tf.math.sqrt(d_k)
+        pointer = tf.nn.softmax(pointer, axis=2)
+        matched = tf.matmul(tgt, pointer, transpose_b=True)
 
-        # Use SVD to solve rotation
+        # Compute mean and demean of source and target clouds
+        src_cent = tf.reduce_mean(src, axis=2, keepdims=True)
+        src_demean = src - src_cent
+        matched_cent = tf.reduce_mean(matched, axis=2, keepdims=True)
+        matched_demean = matched - matched_cent
+
+        # Solve rotation matrix with SVD
+        H = tf.matmul(src_demean, matched_demean, transpose_b=True)
         _, U, V = tf.linalg.svd(H, full_matrices=True)
         R = tf.matmul(V, U, transpose_b=True)
         R_det = tf.linalg.det(R)
@@ -327,13 +332,13 @@ class SVD(keras.layers.Layer):
         R = tf.matmul(refl, R)
 
         # Compute translation
-        t = tf.matmul(src_mean, -R, transpose_b=True) + matched_mean
+        t = tf.matmul(-R, src_cent) + matched_cent
+        t = tf.transpose(t, perm=(0, 2, 1))
 
         return R, t
 
 
 if __name__ == "__main__":
     dcp = DCP()
-    dcp(tf.zeros((8, 2, 2048, 3)))
-    dcp.save_weights('dcp.h5')
-
+    dcp(tf.zeros((4, 2, 2048, 3)))
+    # dcp.save_weights('dcp.h5')

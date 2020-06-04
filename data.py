@@ -20,13 +20,34 @@ def pack_to_one():
     test_file['data'] = test_data
 
 
+def torch_to_tf(torch_path: str, tf_path: str):
+    '''
+    [dgcnn/dcp/dgcnn]
+    [bn1/beta:0], ...gamma:0, ...moving_mean:0, ...moving_variance:0
+    [conv1]: kernel:0 (1, 1, from, to)
+
+    [emb_nn.bn1.weight], ...bias, ...running_mean, ...running_var]
+    [emb_nn.conv1.weight] (to, from, 1, 1)
+    '''
+
+    # Open torch and tf weights
+    import torch
+    torch_wt = torch.load(torch_path, map_location=torch.device('cpu'))
+    tf_wt = h5py.File(tf_path, mode='r+')
+
+    # Transfer DGCNN weights
+    dgcnn_group = tf_wt['dgcnn/dcp/dgcnn']
+    for l in ['bn1', 'bn2', 'bn3', 'bn4', 'bn5']:
+        grp = dgcnn_group[l]
+        grp['beta:0'][...] = torch_wt['emb_nn.%s.bias' % l]
+        grp['gamma:0'][...] = torch_wt['emb_nn.%s.weight' % l]
+        grp['moving_mean:0'][...] = torch_wt['emb_nn.%s.running_mean' % l]
+        grp['moving_variance:0'][...] = torch_wt['emb_nn.%s.running_var' % l]
+    for l in ['conv1', 'conv2', 'conv3', 'conv4', 'conv5']:
+        kernel = np.array(torch_wt['emb_nn.%s.weight' % l])
+        kernel = np.transpose(kernel, axes=(3, 2, 1, 0))
+        dgcnn_group[l]['kernel:0'][...] = kernel
+
+
 if __name__ == "__main__":
-    # import torch
-    # wt = torch.load('weights/dcp_v1.t7', map_location=torch.device('cpu'))
-    # for k, v in wt.items():
-    #     print(k, v.size())
-    h5 = h5py.File('dcp.h5', 'r')
-    for k, g in h5['dgcnn']['dcp']['dgcnn'].items():
-        # print(k, g)
-        for k, v in g.items():
-            print(k, v)
+    torch_to_tf('weights/dcp_v1.t7', 'dcp.h5')
