@@ -44,13 +44,13 @@ def compare_output():
     # Load TF model
     tf_model = model.DCP()
     tf_model(tf.zeros((2, 2, 2048, 3)))
-    tf_model.load_weights('dcp.h5')
+    tf_model.load_weights('dcp_v2.h5')
 
     # Load torch model
     torch_model = model_torch.DCP(model_torch.Args())
-    torch_wt = torch.load('weights/dcp_v1.t7',
+    torch_wt = torch.load('weights/dcp_v2.t7',
                           map_location=torch.device('cpu'))
-    torch_model.load_state_dict(torch_wt)
+    # torch_model.load_state_dict(torch_wt)
 
     # Compare output
     cmp = OutputComparison(torch_model, tf_model)

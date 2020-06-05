@@ -6,4 +6,5 @@ logs
 *.h5
 *.t7
 *.slurm
+*.err
 .DS_Store

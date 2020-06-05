@@ -6,13 +6,15 @@ from tensorflow import keras
 from tqdm import trange
 from datetime import datetime
 import os
+import sys
 
 import model
 
 
 epochs = 100
 batch_size = 16
-model_path = 'dcp.h5'
+learning_rate = 1e-5
+model_path = 'dcp_v2.h5'
 
 
 class DataSequence(keras.utils.Sequence):
@@ -56,14 +58,15 @@ class DataSequence(keras.utils.Sequence):
 
 def train():
     # Load data
-    file = h5py.File('train.h5', 'r')
-    data = np.array(file['data'], dtype=np.float32)
+    data_file = h5py.File('train.h5', 'r')
+    data = np.array(data_file['data'], dtype=np.float32)
     seq = DataSequence(data, batch_size)
 
     # Build model
     dcp = model.DCP()
-    dcp.compile(optimizer='adam', loss=model.DCPLoss(dcp))
-    dcp(np.zeros((batch_size, 2, 2048, 3)))
+    opt = keras.optimizers.Adam(learning_rate=learning_rate)
+    dcp.compile(optimizer=opt, loss=model.DCPLoss(dcp))
+    dcp(np.zeros((batch_size, 2, 2048, 3), dtype=np.float32))
     if os.path.exists(model_path):
         print('Model weights found.')
         dcp.load_weights(model_path)
@@ -102,5 +105,30 @@ def train():
         seq.on_epoch_end()
 
 
+def evaluate():
+    # Load data
+    data_file = h5py.File('test.h5', 'r')
+    data = np.array(data_file['data'], dtype=np.float32)
+    seq = DataSequence(data, batch_size)
+
+    # Build model
+    dcp = model.DCP()
+    opt = keras.optimizers.Adam(learning_rate=learning_rate)
+    dcp.compile(optimizer=opt, loss=model.DCPLoss(dcp))
+    dcp(np.zeros((batch_size, 2, 2048, 3), dtype=np.float32))
+    dcp.load_weights(model_path)
+
+    # Test on batches
+    num_batches = len(seq)
+    losses = np.zeros((num_batches), dtype=np.float32)
+    for batch_idx in range(num_batches):
+        x, y = seq[batch_idx]
+        batch_loss = dcp.train_on_batch(x, y)
+        losses[batch_idx] = batch_loss
+    loss = np.mean(losses)
+    print(loss, file=sys.stderr)
+
+
 if __name__ == "__main__":
-    train()
+    # train()
+    evaluate()

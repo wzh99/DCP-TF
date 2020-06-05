@@ -478,5 +478,9 @@ class Args:
         self.emb_dims = 512
         self.cycle = False
         self.emb_nn = 'dgcnn'
-        self.pointer = 'identity'
+        self.pointer = 'transformer'
         self.head = 'svd'
+        self.n_blocks = 1
+        self.dropout = 0
+        self.ff_dims = 1024
+        self.n_heads = 4
