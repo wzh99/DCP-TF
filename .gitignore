@@ -3,6 +3,7 @@ __pycache__
 modelnet40
 weights
 logs
+build
 *.h5
 *.t7
 *.slurm

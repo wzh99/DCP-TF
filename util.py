@@ -79,4 +79,5 @@ def _transfer_ffn(tf_grp: h5py.Group, tf_layer: str, torch_wt: OrderedDict,
 
 
 if __name__ == "__main__":
-    transfer_torch_to_tf('weights/dcp_v2.t7', 'dcp_v2.h5')
+    pass
+    # transfer_torch_to_tf('weights/dcp_v2.t7', 'weights/dcp_v2.h5')

@@ -14,7 +14,7 @@ import model
 epochs = 100
 batch_size = 16
 learning_rate = 1e-5
-model_path = 'dcp_v2.h5'
+model_path = 'weights/dcp_v2.h5'
 
 
 class DataSequence(keras.utils.Sequence):
@@ -123,7 +123,7 @@ def evaluate():
     losses = np.zeros((num_batches), dtype=np.float32)
     for batch_idx in range(num_batches):
         x, y = seq[batch_idx]
-        batch_loss = dcp.train_on_batch(x, y)
+        batch_loss = dcp.test_on_batch(x, y)
         losses[batch_idx] = batch_loss
     loss = np.mean(losses)
     print(loss, file=sys.stderr)
