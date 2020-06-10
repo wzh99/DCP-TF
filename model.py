@@ -54,7 +54,7 @@ class DCPLoss(keras.losses.Loss):
             for param in self.model.trainable_weights:
                 loss += tf.nn.l2_loss(param) * self.l
 
-        return loss
+        return loss * 2
 
 
 class DGCNN(keras.Model):
@@ -64,27 +64,17 @@ class DGCNN(keras.Model):
         self.graph = GraphFeature(k)
 
         from tensorflow.keras.layers import Conv1D, Conv2D, BatchNormalization
-        self.conv1 = Conv2D(64, 1, use_bias=False,
-                            trainable=False, name='conv1')
-        self.conv2 = Conv2D(64, 1, use_bias=False,
-                            trainable=False, name='conv2')
-        self.conv3 = Conv2D(128, 1, use_bias=False,
-                            trainable=False, name='conv3')
-        self.conv4 = Conv2D(256, 1, use_bias=False,
-                            trainable=False, name='conv4')
-        self.conv5 = Conv2D(512, 1, use_bias=False,
-                            trainable=False, name='conv5')
-        
-        self.bn1 = BatchNormalization(
-            epsilon=1e-5, momentum=0.9, trainable=False, name='bn1')
-        self.bn2 = BatchNormalization(
-            epsilon=1e-5, momentum=0.9, trainable=False, name='bn2')
-        self.bn3 = BatchNormalization(
-            epsilon=1e-5, momentum=0.9, trainable=False, name='bn3')
-        self.bn4 = BatchNormalization(
-            epsilon=1e-5, momentum=0.9, trainable=False, name='bn4')
-        self.bn5 = BatchNormalization(
-            epsilon=1e-5, momentum=0.9, trainable=False, name='bn5')
+        self.conv1 = Conv2D(64, 1, use_bias=False, name='conv1')
+        self.conv2 = Conv2D(64, 1, use_bias=False, name='conv2')
+        self.conv3 = Conv2D(128, 1, use_bias=False, name='conv3')
+        self.conv4 = Conv2D(256, 1, use_bias=False, name='conv4')
+        self.conv5 = Conv2D(512, 1, use_bias=False, name='conv5')
+
+        self.bn1 = BatchNormalization(epsilon=1e-5, momentum=0.9, name='bn1')
+        self.bn2 = BatchNormalization(epsilon=1e-5, momentum=0.9, name='bn2')
+        self.bn3 = BatchNormalization(epsilon=1e-5, momentum=0.9, name='bn3')
+        self.bn4 = BatchNormalization(epsilon=1e-5, momentum=0.9, name='bn4')
+        self.bn5 = BatchNormalization(epsilon=1e-5, momentum=0.9, name='bn5')
 
     def call(self, x: tf.Tensor):
         # Extract features from different levels

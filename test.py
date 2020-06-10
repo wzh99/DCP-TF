@@ -8,7 +8,7 @@ import train
 
 
 # Model indices in test dataset
-test_size = 50
+test_size = 100
 # Seed for MT19937 bit generator
 rng_seed = 1
 
@@ -23,7 +23,7 @@ def test_dcp():
     dcp = model.DCP()
     dcp.compile(loss=model.DCPLoss(dcp))
     dcp(tf.zeros((2, 2, 2048, 3)))
-    dcp.load_weights(train.model_path)
+    dcp.load_weights(train.model_path, by_name=True, skip_mismatch=True)
 
     # Test on selected data
     np.random.seed(rng_seed)
@@ -34,7 +34,7 @@ def test_dcp():
     for i in range(len(seq)):
         x, y = seq[i]
         start = time.time()
-        losses[i] = dcp.test_on_batch(x, y) * 2
+        losses[i] = dcp.test_on_batch(x, y)
         total_time += time.time() - start
     print('Loss:', np.mean(losses))
     print('Time: %f s' % (total_time / test_size))

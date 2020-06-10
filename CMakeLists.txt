@@ -9,7 +9,7 @@ find_package(TBB REQUIRED)
 
 include_directories(${PCL_INCLUDE_DIRS} ${HDF5_INCLUDE_DIRS} ${TBB_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
-add_definitions(${PCL_DEFINITIONS} ${HDF5_DEFINITIONS} ${TBB_DEFINITIONS})
+add_definitions(${PCL_DEFINITIONS} ${HDF5_DEFINITIONS})
 
 aux_source_directory(cxx SOURCES)
 add_executable(${PROJECT_NAME} ${SOURCES})

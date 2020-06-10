@@ -5,7 +5,7 @@
 #include <pcl/registration/ia_fpcs.h>
 #include <H5Cpp.h>
 
-static constexpr auto TEST_SIZE = 50;
+static constexpr auto TEST_SIZE = 100;
 
 std::vector<PointCloudPtr> loadData(const char *path)
 {
@@ -18,13 +18,13 @@ std::vector<PointCloudPtr> loadData(const char *path)
     auto buf = std::make_unique<float[]>(dims[0] * dims[1] * dims[2]);
 
     // Speficy memory and file space
-    H5::DataSpace mem_space(3, dims);
-    auto file_space = dataset.getSpace();
+    H5::DataSpace memSpace(3, dims);
+    auto fileSpace = dataset.getSpace();
     hsize_t start[3]{0, 0, 0};
-    file_space.selectHyperslab(H5S_SELECT_SET, dims, start);
+    fileSpace.selectHyperslab(H5S_SELECT_SET, dims, start);
 
     // Read to buffer
-    dataset.read(buf.get(), H5::PredType::IEEE_F32LE, mem_space, file_space);
+    dataset.read(buf.get(), H5::PredType::IEEE_F32LE, memSpace, fileSpace);
 
     // Close file
     dataset.close();
@@ -57,7 +57,7 @@ public:
     float next(float low, float high)
     {
         auto t = unif(engine);
-        unif(engine); // abandon one sample for identical sequence with numpy
+        unif(engine); // abandon one sample for consistency with numpy
         return (1 - t) * low + t * high;
     }
 
@@ -102,11 +102,11 @@ std::vector<Eigen::Affine3f> generateRigid()
 
 float computeLoss(const Eigen::Affine3f &real, const Eigen::Affine3f &pred)
 {
-    auto R_loss = (real.rotation() * pred.rotation().transpose() -
+    auto RLoss = (real.rotation() * pred.rotation().transpose() -
                    Eigen::Matrix3f::Identity())
                       .squaredNorm();
-    auto t_loss = (real.translation() - pred.translation()).squaredNorm();
-    return R_loss + t_loss;
+    auto tLoss = (real.translation() - pred.translation()).squaredNorm();
+    return RLoss + tLoss;
 }
 
 struct TestCase
@@ -215,7 +215,7 @@ void testAll(std::vector<PointCloudPtr> &src,
 
 int main()
 {
-    auto clouds = loadData("../test.h5");
+    auto clouds = loadData("test.h5");
     auto trans = generateRigid();
     testAll(clouds, trans);
 }

@@ -11,7 +11,7 @@ import sys
 import model
 
 
-epochs = 100
+epochs = 50
 batch_size = 16
 learning_rate = 1e-5
 model_path = 'weights/dcp_v2.h5'
@@ -36,19 +36,17 @@ class DataSequence(keras.utils.Sequence):
 
         # Compute true transformation
         euler_angles = np.random.uniform(
-            low=-np.pi, high=np.pi, size=(batch_len, 3)).astype(np.float32)
+            low=-np.pi, high=np.pi, size=(batch_len, 1, 3)).astype(np.float32)
         R_true = rotation_matrix_3d.from_euler(euler_angles)
-        R_expand = tf.expand_dims(R_true, 1)
         t_true = np.random.uniform(
-            low=-0.5, high=0.5, size=(batch_len, 3)).astype(np.float32)
-        t_expand = tf.expand_dims(t_true, 1)
+            low=-0.5, high=0.5, size=(batch_len, 1, 3)).astype(np.float32)
 
         # Output batch
-        tgt = rotation_matrix_3d.rotate(src, R_expand) + t_expand
+        tgt = rotation_matrix_3d.rotate(src, R_true) + t_true
         src = tf.expand_dims(src, axis=1)
         tgt = tf.expand_dims(tgt, axis=1)
         x = tf.concat([src, tgt], 1)
-        y_true = tf.concat([R_true, t_expand], 1)
+        y_true = tf.concat([tf.squeeze(R_true), t_true], 1)
 
         return x, y_true
 

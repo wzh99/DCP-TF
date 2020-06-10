@@ -3,6 +3,9 @@ import numpy as np
 import torch
 from collections import OrderedDict
 
+import model
+import train
+
 
 modelnet40_path = 'modelnet40/'
 
@@ -22,21 +25,20 @@ def pack_to_one():
     test_file['data'] = test_data
 
 
-def transfer_torch_to_tf(torch_path: str, tf_path: str):
+def transfer_from_torch(torch_path: str):
+    # Save untrained weights
+    dcp = model.DCP()
+    dcp(np.zeros((2, 2, 2048, 3), dtype=np.float32))
+    dcp.save_weights(train.model_path)
+
     # Open torch and tf weights
     torch_wt = torch.load(torch_path, map_location=torch.device('cpu'))
     # for k, v in torch_wt.items():
     #     print(k, v.size())
-    tf_wt = h5py.File(tf_path, mode='r+')
+    tf_wt = h5py.File(train.model_path, mode='r+')
 
     # Transfer DGCNN weights
     dgcnn_grp = tf_wt['dgcnn/dcp/dgcnn']
-    for l in ['bn1', 'bn2', 'bn3', 'bn4', 'bn5']:
-        grp = dgcnn_grp[l]
-        grp['beta:0'][...] = torch_wt['emb_nn.%s.bias' % l]
-        grp['gamma:0'][...] = torch_wt['emb_nn.%s.weight' % l]
-        grp['moving_mean:0'][...] = torch_wt['emb_nn.%s.running_mean' % l]
-        grp['moving_variance:0'][...] = torch_wt['emb_nn.%s.running_var' % l]
     for l in ['conv1', 'conv2', 'conv3', 'conv4', 'conv5']:
         kernel = np.array(torch_wt['emb_nn.%s.weight' % l])
         kernel = np.transpose(kernel, axes=(3, 2, 1, 0))
@@ -53,6 +55,9 @@ def transfer_torch_to_tf(torch_path: str, tf_path: str):
     torch_enc = 'pointer.model.encoder.layers.0'
     _transfer_mha(enc_grp, 'e0_mha', torch_wt, torch_enc + '.self_attn')
     _transfer_ffn(enc_grp, 'e0_ffn', torch_wt, torch_enc + '.feed_forward')
+
+    # Load weights to validate
+    dcp.load_weights(train.model_path)
 
 
 def _transfer_mha(tf_grp: h5py.Group, tf_layer: str, torch_wt: OrderedDict,
@@ -79,5 +84,4 @@ def _transfer_ffn(tf_grp: h5py.Group, tf_layer: str, torch_wt: OrderedDict,
 
 
 if __name__ == "__main__":
-    pass
-    # transfer_torch_to_tf('weights/dcp_v2.t7', 'weights/dcp_v2.h5')
+    transfer_from_torch('weights/dcp_v2.t7')
