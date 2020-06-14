@@ -21,7 +21,7 @@ To run comparison program, you may have to install these libraries:
 
 ## Usage
 
-Basic usage is encapsulated into classes or functions. You can directly call them in the program. Hyperparameters are directly defined in source code, and command line arguments is not supported.
+Basic usage is encapsulated into procedures. You can directly call them in the program. Hyperparameters are directly defined in source code, and command line arguments is not supported.
 
 ### Dataset
 
@@ -29,12 +29,12 @@ Download [ModelNet40](https://shapenet.cs.stanford.edu/media/modelnet40_ply_hdf5
 
 ### Training and evaluation
 
-Trained weights `dcp_v2.h5` can be unzipped from [weights/dcp_v2.zip](weights/dcp_v2.zip). Place it in `weights` directory so that evaluation and testing procedure can find it. If you want to train by yourself, run `train.train()` to train, or your owning training procedure. Run `train.evaluate()` to evaluate the trained model with test dataset.
+Trained weights `dcp_v2.h5` can be unzipped from [`weights/dcp_v2.zip`](weights/dcp_v2.zip). Place it in `weights` directory so that evaluation and testing procedure can find it. If you want to train by yourself, run `train.train()` to train, or your owning training procedure. Run `train.evaluate()` to evaluate the trained model with test dataset.
 
 ### Comparison
 
 The comparison program tests registration methods on the first 100 models of the test dataset. It is divided into Python and C++ code. Run `compare.test_dcp()` to test DCP. Compile and run the C++ program to test ICP, 4-PCS and Go-ICP. ICP and 4-PCS implementation is from PCL. Go-ICP is from my previous project [OptICP](https://github.com/wzh99/OptICP).
 
-## Documents
+## Documentation
 
 The project [proposal](doc/proposal.md) and [report](doc/dcp_report.md) are provided (both in Chinese). Refer to them for better understanding of this project. 
