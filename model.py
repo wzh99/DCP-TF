@@ -61,7 +61,7 @@ class DGCNN(keras.Model):
     def __init__(self, k: int = 20):
         super().__init__()
 
-        self.graph = GraphFeature(k)
+        self.knn = KNN(k)
 
         from tensorflow.keras.layers import Conv1D, Conv2D, BatchNormalization
         self.conv1 = Conv2D(64, 1, use_bias=False, name='conv1')
@@ -78,7 +78,7 @@ class DGCNN(keras.Model):
 
     def call(self, x: tf.Tensor):
         # Extract features from different levels
-        x = self.graph(x)
+        x = self.knn(x)
         x = tf.nn.relu(self.bn1(self.conv1(x)))
         x1 = tf.reduce_max(x, axis=-2, keepdims=True)
 
@@ -99,7 +99,7 @@ class DGCNN(keras.Model):
         return x  # (batch_size, num_vertices, num_features)
 
 
-class GraphFeature(keras.layers.Layer):
+class KNN(keras.layers.Layer):
     def __init__(self, k: int):
         super().__init__()
         self.k = k

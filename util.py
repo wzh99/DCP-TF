@@ -1,6 +1,5 @@
 import h5py
 import numpy as np
-import torch
 from collections import OrderedDict
 
 import model
@@ -11,6 +10,9 @@ modelnet40_path = 'modelnet40/'
 
 
 def pack_to_one():
+    '''
+    Pack original dataset files into single train and test file.
+    '''
     train_data = np.ndarray((0, 2048, 3), dtype=np.float32)
     for i in range(5):
         f = h5py.File(modelnet40_path + 'ply_data_train%d.h5' % (i), 'r')
@@ -26,6 +28,12 @@ def pack_to_one():
 
 
 def transfer_from_torch(torch_path: str):
+    '''
+    Transfer weights from original PyTorch model to TensorFlow model.
+
+    '''
+    import torch
+
     # Save untrained weights
     dcp = model.DCP()
     dcp(np.zeros((2, 2, 2048, 3), dtype=np.float32))
@@ -84,4 +92,5 @@ def _transfer_ffn(tf_grp: h5py.Group, tf_layer: str, torch_wt: OrderedDict,
 
 
 if __name__ == "__main__":
-    transfer_from_torch('weights/dcp_v2.t7')
+    # transfer_from_torch('weights/dcp_v2.t7')
+    pack_to_one()

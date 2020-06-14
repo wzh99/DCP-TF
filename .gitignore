@@ -1,7 +1,6 @@
 __pycache__
 .vscode
 modelnet40
-weights
 logs
 build
 *.h5

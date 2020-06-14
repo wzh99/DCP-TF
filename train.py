@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_graphics.geometry.transformation import rotation_matrix_3d
 from tensorflow import keras
-from tqdm import trange
+# from tqdm import trange
 from datetime import datetime
 import os
 import sys
